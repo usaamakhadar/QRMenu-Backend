@@ -51,6 +51,11 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 
+// Health check root endpoint
+app.get('/', (_req, res) => {
+    res.json({ status: 'ok', message: 'QRMenu Backend API is running successfully!' });
+});
+
 // Log requests
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
