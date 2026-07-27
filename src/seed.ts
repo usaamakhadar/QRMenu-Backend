@@ -16,7 +16,7 @@ async function main() {
     const hashedPassword = await bcrypt.hash('demo1234', 12);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    const createRest = async (name, slug, desc, hours, email, itemsRaw) => {
+    const createRest = async (name: string, slug: string, desc: string, hours: string, email: string, itemsRaw: any[]) => {
         const res = await prisma.restaurant.create({
             data: { name, slug, description: desc, openingHours: hours },
         });
