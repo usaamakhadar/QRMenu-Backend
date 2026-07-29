@@ -65,7 +65,7 @@ model Restaurant {
   edahabNumber  String?
   receiptFooter String?
   taxRate       Float          @default(0.0)
-  exchangeRate  Float          @default(11000.0)
+  exchangeRate  Float          @default(8500.0)
   createdAt     DateTime       @default(now())
   tables        Table[]
   categories    Category[]
