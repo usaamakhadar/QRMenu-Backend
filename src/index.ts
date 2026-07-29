@@ -880,18 +880,35 @@ app.get('/api/restaurants/:id/orders/history', verifyToken, async (req: any, res
     }
 });
 
-// Public endpoint for customers to get status of specific orders securely
+// Public endpoint for customers to get status of specific orders securely (by IDs or by active table session)
 app.get('/api/orders/status', async (req, res) => {
-    const { ids } = req.query;
-    if (!ids) return res.json([]);
-    const idArray = (ids as string).split(',');
+    const { ids, tableId } = req.query;
+    if (!ids && !tableId) return res.json([]);
+
+    const idArray = ids && typeof ids === 'string' ? ids.split(',').filter(Boolean) : [];
+    const tId = tableId && typeof tableId === 'string' ? tableId : '';
+
     try {
+        const orConditions: any[] = [];
+        if (idArray.length > 0) {
+            orConditions.push({ id: { in: idArray } });
+        }
+        if (tId) {
+            orConditions.push({
+                tableId: tId,
+                status: { in: ['PENDING', 'IN_PROGRESS', 'READY'] }
+            });
+        }
+
+        if (orConditions.length === 0) return res.json([]);
+
         const orders = await prisma.order.findMany({
-            where: { id: { in: idArray } },
+            where: { OR: orConditions },
             include: {
                 table: true,
                 orderItems: { include: { menuItem: true } }
-            }
+            },
+            orderBy: { createdAt: 'desc' }
         });
         return res.json(orders);
     } catch (e) {
