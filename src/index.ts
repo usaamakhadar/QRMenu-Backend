@@ -646,8 +646,8 @@ app.post('/api/orders', async (req, res) => {
         }
 
         // Calculate daily order sequence for this restaurant (resets at 00:00:00 every day)
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         const todayOrderCount = await prisma.order.count({
             where: {
@@ -656,11 +656,14 @@ app.post('/api/orders', async (req, res) => {
             }
         });
 
-        const seqNumber = String(todayOrderCount + 1).padStart(2, '0');
-        const dateStr = todayStart.toISOString().slice(2, 10).replace(/-/g, '');
+        const seqNumber = todayOrderCount + 1;
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = String(now.getFullYear()).slice(-2);
+        const ddmmyy = `${day}${month}${year}`;
         const uniqueHash = Math.random().toString(36).substring(2, 6).toUpperCase();
 
-        const customOrderId = `${seqNumber}-${dateStr}-${uniqueHash}`;
+        const customOrderId = `${seqNumber}-${ddmmyy}-${uniqueHash}`;
 
         // Create the Order linked to the TableSession
         const order = await prisma.order.create({
