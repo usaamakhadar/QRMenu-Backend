@@ -645,9 +645,27 @@ app.post('/api/orders', async (req, res) => {
             });
         }
 
+        // Calculate daily order sequence for this restaurant (resets at 00:00:00 every day)
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const todayOrderCount = await prisma.order.count({
+            where: {
+                restaurantId,
+                createdAt: { gte: todayStart }
+            }
+        });
+
+        const seqNumber = String(todayOrderCount + 1).padStart(2, '0');
+        const dateStr = todayStart.toISOString().slice(2, 10).replace(/-/g, '');
+        const uniqueHash = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+        const customOrderId = `${seqNumber}-${dateStr}-${uniqueHash}`;
+
         // Create the Order linked to the TableSession
         const order = await prisma.order.create({
             data: {
+                id: customOrderId,
                 restaurantId,
                 tableId,
                 tableSessionId: session.id,
