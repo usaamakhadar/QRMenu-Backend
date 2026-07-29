@@ -14,7 +14,7 @@ async function main() {
     await prisma.restaurant.deleteMany({});
 
     const hashedPassword = await bcrypt.hash('demo1234', 12);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://qrmenu-digital.vercel.app';
 
     const createRest = async (name: string, slug: string, desc: string, hours: string, email: string, itemsRaw: any[]) => {
         const res = await prisma.restaurant.create({

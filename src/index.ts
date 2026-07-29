@@ -162,7 +162,7 @@ app.post('/api/auth/register', async (req, res) => {
             await tx.table.create({
                 data: {
                     tableNumber: '1',
-                    qrCodeData: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/${slug}?table=1`,
+                    qrCodeData: `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://qrmenu-digital.vercel.app'}/${slug}?table=1`,
                     restaurantId: restaurant.id,
                 },
             });
@@ -331,7 +331,7 @@ app.post('/api/restaurants', async (req, res) => {
             await tx.table.create({
                 data: {
                     tableNumber: '1',
-                    qrCodeData: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/${slug}?table=1`,
+                    qrCodeData: `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://qrmenu-digital.vercel.app'}/${slug}?table=1`,
                     restaurantId: restaurant.id,
                 },
             });
@@ -507,7 +507,7 @@ app.post('/api/restaurants/:id/tables', verifyToken, async (req: any, res) => {
         const table = await prisma.table.create({
             data: {
                 tableNumber: tableNumber.toString().trim(),
-                qrCodeData: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/${restaurant.slug}?table=${tableNumber}`,
+                qrCodeData: `${process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://qrmenu-digital.vercel.app'}/${restaurant.slug}?table=${tableNumber}`,
                 restaurantId: id,
             },
         });
