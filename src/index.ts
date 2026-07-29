@@ -541,7 +541,7 @@ app.patch('/api/restaurants/:id/settings', verifyToken, async (req: any, res) =>
     if (req.restaurant.restaurantId !== id) {
         return res.status(403).json({ error: 'Unauthorized access.' });
     }
-    const { name, taxRate, exchangeRate, address, phone, zaadNumber, edahabNumber, receiptFooter } = req.body;
+    const { name, taxRate, exchangeRate, address, phone, zaadNumber, edahabNumber, premierWalletNumber, receiptFooter } = req.body;
 
     const updateData: any = {};
 
@@ -565,6 +565,7 @@ app.patch('/api/restaurants/:id/settings', verifyToken, async (req: any, res) =>
     if (phone !== undefined) updateData.phone = phone;
     if (zaadNumber !== undefined) updateData.zaadNumber = zaadNumber;
     if (edahabNumber !== undefined) updateData.edahabNumber = edahabNumber;
+    if (premierWalletNumber !== undefined) updateData.premierWalletNumber = premierWalletNumber;
     if (receiptFooter !== undefined) updateData.receiptFooter = receiptFooter;
 
     try {

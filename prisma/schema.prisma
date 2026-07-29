@@ -23,6 +23,7 @@ enum PaymentMethod {
   ZAAD
   EDAHAB
   CARD
+  PREMIER_WALLET
   UNPAID
 }
 
@@ -61,9 +62,10 @@ model Restaurant {
   openingHours  String?
   address       String?
   phone         String?
-  zaadNumber    String?
-  edahabNumber  String?
-  receiptFooter String?
+  zaadNumber          String?
+  edahabNumber        String?
+  premierWalletNumber String?
+  receiptFooter       String?
   taxRate       Float          @default(0.0)
   exchangeRate  Float          @default(8500.0)
   createdAt     DateTime       @default(now())
