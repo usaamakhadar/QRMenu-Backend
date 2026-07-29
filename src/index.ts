@@ -1075,7 +1075,15 @@ app.delete('/api/menu-items/:id', verifyToken, async (req: any, res) => {
         return res.json({ success: true });
     } catch (error) {
         return res.status(500).json({ error: 'Failed to delete menu item' });
+// Service request HTTP API backup (Call Waiter / Request Bill)
+app.post('/api/restaurants/:id/service-request', (req, res) => {
+    const { id } = req.params;
+    const { tableNumber, requestType } = req.body;
+    if (id && tableNumber && requestType) {
+        io.to(id).emit('serviceRequestAlert', { restaurantId: id, tableNumber, requestType });
+        return res.json({ success: true });
     }
+    return res.status(400).json({ error: 'Missing parameters' });
 });
 
 // ─── SOCKET.IO ────────────────────────────────────────────────────────────────
