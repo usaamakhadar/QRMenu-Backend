@@ -19,6 +19,8 @@ enum SessionStatus {
 }
 
 enum PaymentMethod {
+  CASH_USD
+  CASH_SLSH
   CASH
   ZAAD
   EDAHAB
