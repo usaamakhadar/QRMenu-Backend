@@ -591,15 +591,34 @@ app.post('/api/orders', async (req, res) => {
     }
 
     try {
-        const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+        const [restaurant, table] = await Promise.all([
+            prisma.restaurant.findUnique({ where: { id: restaurantId } }),
+            prisma.table.findFirst({ where: { id: tableId, restaurantId } })
+        ]);
         if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
-
-        const table = await prisma.table.findFirst({ where: { id: tableId, restaurantId } });
         if (!table) return res.status(404).json({ error: 'Table not found for this restaurant' });
 
-        // Retrieve items and check availability
+        // Retrieve items, active session, and daily order count concurrently
         const menuItemIds = items.map((item: any) => item.menuItemId);
-        const dbMenuItems = await prisma.menuItem.findMany({ where: { id: { in: menuItemIds } } });
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        const [dbMenuItems, session, todayOrderCount] = await Promise.all([
+            prisma.menuItem.findMany({ where: { id: { in: menuItemIds } } }),
+            prisma.tableSession.findFirst({
+                where: {
+                    tableId,
+                    restaurantId,
+                    status: 'ACTIVE'
+                }
+            }),
+            prisma.order.count({
+                where: {
+                    restaurantId,
+                    createdAt: { gte: todayStart }
+                }
+            })
+        ]);
 
         let totalAmount = 0;
         const orderItemsData = [];
@@ -626,16 +645,9 @@ app.post('/api/orders', async (req, res) => {
         }
 
         // Find or create an ACTIVE TableSession for this table
-        let session = await prisma.tableSession.findFirst({
-            where: {
-                tableId,
-                restaurantId,
-                status: 'ACTIVE'
-            }
-        });
-
-        if (!session) {
-            session = await prisma.tableSession.create({
+        let activeSession = session;
+        if (!activeSession) {
+            activeSession = await prisma.tableSession.create({
                 data: {
                     tableId,
                     restaurantId,
@@ -646,17 +658,6 @@ app.post('/api/orders', async (req, res) => {
             });
         }
 
-        // Calculate daily order sequence for this restaurant (resets at 00:00:00 every day)
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-        const todayOrderCount = await prisma.order.count({
-            where: {
-                restaurantId,
-                createdAt: { gte: todayStart }
-            }
-        });
-
         const seqNumber = todayOrderCount + 1;
         const day = String(now.getDate()).padStart(2, '0');
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -666,36 +667,36 @@ app.post('/api/orders', async (req, res) => {
 
         const customOrderId = `${seqNumber}-${ddmmyy}-${uniqueHash}`;
 
-        // Create the Order linked to the TableSession
-        const order = await prisma.order.create({
-            data: {
-                id: customOrderId,
-                restaurantId,
-                tableId,
-                tableSessionId: session.id,
-                specialInstructions: specialInstructions || '',
-                totalAmount,
-                isAddon: !!isAddon,
-                orderItems: { create: orderItemsData },
-            },
-            include: {
-                table: true,
-                orderItems: { include: { menuItem: true } },
-            },
-        });
-
-        // Update the TableSession total amount
-        await prisma.tableSession.update({
-            where: { id: session.id },
-            data: {
-                totalSessionAmount: {
-                    increment: totalAmount
+        // Create the Order and update Session amount in a single batch transaction
+        const [order] = await prisma.$transaction([
+            prisma.order.create({
+                data: {
+                    id: customOrderId,
+                    restaurantId,
+                    tableId,
+                    tableSessionId: activeSession.id,
+                    specialInstructions: specialInstructions || '',
+                    totalAmount,
+                    isAddon: !!isAddon,
+                    orderItems: { create: orderItemsData },
+                },
+                include: {
+                    table: true,
+                    orderItems: { include: { menuItem: true } },
+                },
+            }),
+            prisma.tableSession.update({
+                where: { id: activeSession.id },
+                data: {
+                    totalSessionAmount: {
+                        increment: totalAmount
+                    }
                 }
-            }
-        });
+            })
+        ]);
 
         io.to(restaurantId).emit('newOrder', order);
-        console.log(`New Order ${order.id} sent to kitchen room: ${restaurantId} linked to Session: ${session.id}`);
+        console.log(`New Order ${order.id} sent to kitchen room: ${restaurantId} linked to Session: ${activeSession.id}`);
         return res.status(201).json(order);
     } catch (error) {
         console.error('Error creating order:', error);
