@@ -527,7 +527,13 @@ app.delete('/api/tables/:tableId', verifyToken, async (req: any, res) => {
         if (table.restaurantId !== req.restaurant.restaurantId) {
             return res.status(403).json({ error: 'Unauthorized access.' });
         }
-        await prisma.table.delete({ where: { id: tableId } });
+        // Delete all dependent records first to ensure no foreign key constraint violations
+        await prisma.$transaction([
+            prisma.orderItem.deleteMany({ where: { order: { tableId } } }),
+            prisma.order.deleteMany({ where: { tableId } }),
+            prisma.tableSession.deleteMany({ where: { tableId } }),
+            prisma.table.delete({ where: { id: tableId } })
+        ]);
         return res.json({ success: true });
     } catch (error) {
         console.error('Error deleting table:', error);
