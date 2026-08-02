@@ -617,7 +617,12 @@ app.post('/api/orders', async (req, res) => {
                 where: {
                     tableId,
                     restaurantId,
-                    status: 'ACTIVE'
+                    status: 'ACTIVE',
+                    orders: {
+                        some: {
+                            status: { not: 'CANCELLED' }
+                        }
+                    }
                 }
             }),
             prisma.order.count({
@@ -878,6 +883,36 @@ app.patch('/api/orders/:orderId/cancel', async (req, res) => {
             },
         });
 
+        // Sync TableSession amount & check if session is resolved
+        if (order.tableSessionId) {
+            await prisma.tableSession.update({
+                where: { id: order.tableSessionId },
+                data: {
+                    totalSessionAmount: {
+                        decrement: order.totalAmount
+                    }
+                }
+            }).catch(() => {});
+
+            const remainingOrders = await prisma.order.findMany({
+                where: {
+                    tableSessionId: order.tableSessionId,
+                    id: { not: orderId }
+                }
+            });
+
+            const allResolved = remainingOrders.length === 0 || remainingOrders.every(o => o.status === 'CANCELLED' || o.paymentStatus === 'PAID');
+            if (allResolved) {
+                await prisma.tableSession.update({
+                    where: { id: order.tableSessionId },
+                    data: {
+                        status: 'CLOSED',
+                        closedAt: new Date()
+                    }
+                }).catch(() => {});
+            }
+        }
+
         io.to(updatedOrder.restaurantId).emit('orderCancelled', updatedOrder);
         console.log(`Order ${orderId} has been CANCELLED`);
         return res.json(updatedOrder);
@@ -955,6 +990,11 @@ app.get('/api/tables/:tableId/active-session', async (req, res) => {
             where: {
                 tableId,
                 status: 'ACTIVE',
+                orders: {
+                    some: {
+                        status: { not: 'CANCELLED' }
+                    }
+                }
             },
             select: {
                 id: true,
@@ -1193,6 +1233,18 @@ async function runStaleOrderCleanup() {
                 createdAt: { lte: twentyFourHoursAgo }
             },
             data: { status: 'CANCELLED' }
+        });
+
+        // 3. Auto-close stale active table sessions > 24 hours ago
+        await prisma.tableSession.updateMany({
+            where: {
+                status: 'ACTIVE',
+                openedAt: { lte: twentyFourHoursAgo }
+            },
+            data: {
+                status: 'CLOSED',
+                closedAt: new Date()
+            }
         });
 
         if (autoCompleted.count > 0 || autoCancelled.count > 0) {
