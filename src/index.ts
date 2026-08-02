@@ -1171,6 +1171,43 @@ function slugify(text: string) {
         .replace(/\-\-+/g, '-');
 }
 
+// ─── AUTOMATED SELF-HEALING & CLEANUP JOBS ──────────────────────────────────
+async function runStaleOrderCleanup() {
+    try {
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        // 1. Auto-complete orders that have status READY & paymentStatus PAID created > 2 hours ago
+        const autoCompleted = await prisma.order.updateMany({
+            where: {
+                status: 'READY',
+                paymentStatus: 'PAID',
+                createdAt: { lte: twoHoursAgo }
+            },
+            data: { status: 'COMPLETED' }
+        });
+
+        // 2. Auto-cancel orders that stayed PENDING > 24 hours ago (forgotten/abandoned)
+        const autoCancelled = await prisma.order.updateMany({
+            where: {
+                status: 'PENDING',
+                createdAt: { lte: twentyFourHoursAgo }
+            },
+            data: { status: 'CANCELLED' }
+        });
+
+        if (autoCompleted.count > 0 || autoCancelled.count > 0) {
+            console.log(`[Auto-Cleanup] Auto-completed ${autoCompleted.count} stale READY orders & auto-cancelled ${autoCancelled.count} abandoned PENDING orders.`);
+        }
+    } catch (error) {
+        console.error('[Auto-Cleanup] Error running background cleanup:', error);
+    }
+}
+
+// Run cleanup immediately at startup and then every 15 minutes
+runStaleOrderCleanup();
+setInterval(runStaleOrderCleanup, 15 * 60 * 1000);
+
 httpServer.listen(PORT, () => {
     console.log(`QR Menu Backend running on port ${PORT}`);
 });
