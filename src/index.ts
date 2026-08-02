@@ -817,7 +817,7 @@ app.patch('/api/orders/:orderId/payment', verifyToken, async (req: any, res) => 
                 }
             });
 
-            const allOthersPaid = sessionOrders.every(o => o.paymentStatus === 'PAID');
+            const allOthersPaid = sessionOrders.every(o => o.status === 'CANCELLED' || o.paymentStatus === 'PAID');
 
             if (paymentStatus === 'PAID' && allOthersPaid) {
                 // All orders are paid, close the session
@@ -974,37 +974,36 @@ app.get('/api/restaurants/:id/analytics', verifyToken, async (req: any, res) => 
         return res.status(403).json({ error: 'Unauthorized access.' });
     }
     try {
-        // 1. Get total completed orders (orders belonging to closed sessions)
+        // 1. Get total paid orders
         const totalOrders = await prisma.order.count({
             where: {
                 restaurantId: id,
-                tableSession: {
-                    status: 'CLOSED',
-                },
+                paymentStatus: 'PAID',
+                status: { not: 'CANCELLED' }
             },
         });
 
-        // 2. Get total revenue (sum of totalSessionAmount for CLOSED sessions)
-        const revenueAggregate = await prisma.tableSession.aggregate({
+        // 2. Get total revenue (sum of totalAmount for PAID orders)
+        const revenueAggregate = await prisma.order.aggregate({
             where: {
                 restaurantId: id,
-                status: 'CLOSED',
+                paymentStatus: 'PAID',
+                status: { not: 'CANCELLED' }
             },
             _sum: {
-                totalSessionAmount: true,
+                totalAmount: true,
             },
         });
-        const totalRevenue = revenueAggregate._sum.totalSessionAmount || 0;
+        const totalRevenue = revenueAggregate._sum.totalAmount || 0;
 
-        // 3. Get top menu items by quantity sold in closed sessions
+        // 3. Get top menu items by quantity sold in PAID orders
         const topItemsGroup = await prisma.orderItem.groupBy({
             by: ['menuItemId'],
             where: {
                 order: {
                     restaurantId: id,
-                    tableSession: {
-                        status: 'CLOSED',
-                    },
+                    paymentStatus: 'PAID',
+                    status: { not: 'CANCELLED' }
                 },
             },
             _sum: {
