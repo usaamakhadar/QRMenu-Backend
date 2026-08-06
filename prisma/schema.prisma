@@ -70,6 +70,7 @@ model Restaurant {
   receiptFooter       String?
   taxRate       Float          @default(0.0)
   exchangeRate  Float          @default(8500.0)
+  systemMode    String         @default("FULL_POS")
   createdAt     DateTime       @default(now())
   tables        Table[]
   categories    Category[]

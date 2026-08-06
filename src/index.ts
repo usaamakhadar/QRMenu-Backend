@@ -269,6 +269,8 @@ app.get('/api/auth/me', verifyToken, async (req: any, res) => {
             slug: user.restaurant.slug,
             email: user.email,
             taxRate: user.restaurant.taxRate,
+            exchangeRate: user.restaurant.exchangeRate,
+            systemMode: user.restaurant.systemMode || 'FULL_POS',
             logoUrl: user.restaurant.logoUrl,
             user: {
                 id: user.id,
@@ -543,6 +545,46 @@ app.post('/api/restaurants/:id/verify-password', verifyToken, async (req: any, r
     } catch (error) {
         console.error('Error verifying password:', error);
         return res.status(500).json({ error: 'Failed to verify password' });
+    }
+});
+
+// PATCH /api/restaurants/:id/settings — Update restaurant settings including systemMode
+app.patch('/api/restaurants/:id/settings', verifyToken, async (req: any, res) => {
+    const { id } = req.params;
+    if (req.restaurant.restaurantId !== id) {
+        return res.status(403).json({ error: 'Unauthorized access.' });
+    }
+
+    const {
+        name, taxRate, exchangeRate, systemMode, address, phone,
+        zaadNumber, edahabNumber, premierWalletNumber, description,
+        openingHours, receiptFooter
+    } = req.body;
+
+    try {
+        const dataToUpdate: any = {};
+        if (name !== undefined) dataToUpdate.name = name;
+        if (taxRate !== undefined) dataToUpdate.taxRate = parseFloat(taxRate);
+        if (exchangeRate !== undefined) dataToUpdate.exchangeRate = parseFloat(exchangeRate);
+        if (systemMode !== undefined) dataToUpdate.systemMode = systemMode;
+        if (address !== undefined) dataToUpdate.address = address;
+        if (phone !== undefined) dataToUpdate.phone = phone;
+        if (zaadNumber !== undefined) dataToUpdate.zaadNumber = zaadNumber;
+        if (edahabNumber !== undefined) dataToUpdate.edahabNumber = edahabNumber;
+        if (premierWalletNumber !== undefined) dataToUpdate.premierWalletNumber = premierWalletNumber;
+        if (description !== undefined) dataToUpdate.description = description;
+        if (openingHours !== undefined) dataToUpdate.openingHours = openingHours;
+        if (receiptFooter !== undefined) dataToUpdate.receiptFooter = receiptFooter;
+
+        const updated = await prisma.restaurant.update({
+            where: { id },
+            data: dataToUpdate,
+        });
+
+        return res.json(updated);
+    } catch (error) {
+        console.error('Error updating settings:', error);
+        return res.status(500).json({ error: 'Failed to update restaurant settings.' });
     }
 });
 
