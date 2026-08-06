@@ -270,7 +270,7 @@ app.get('/api/auth/me', verifyToken, async (req: any, res) => {
             email: user.email,
             taxRate: user.restaurant.taxRate,
             exchangeRate: user.restaurant.exchangeRate,
-            systemMode: user.restaurant.systemMode || 'FULL_POS',
+            systemMode: (user.restaurant as any).systemMode || 'FULL_POS',
             logoUrl: user.restaurant.logoUrl,
             user: {
                 id: user.id,
