@@ -291,6 +291,88 @@ app.patch('/api/auth/logo', verifyToken, async (req: any, res) => {
     }
 });
 
+// ─── STAFF ACCOUNTS MANAGEMENT ────────────────────────────────────────────────
+// GET /api/restaurants/:id/users — List all staff accounts for a restaurant
+app.get('/api/restaurants/:id/users', verifyToken, async (req: any, res) => {
+    const { id } = req.params;
+    if (req.restaurant.restaurantId !== id) {
+        return res.status(403).json({ error: 'Unauthorized access.' });
+    }
+    try {
+        const users = await prisma.user.findMany({
+            where: { restaurantId: id },
+            select: { id: true, name: true, email: true, role: true, createdAt: true },
+            orderBy: { createdAt: 'asc' }
+        });
+        return res.json(users);
+    } catch (error) {
+        return res.status(500).json({ error: 'Failed to fetch staff users.' });
+    }
+});
+
+// POST /api/restaurants/:id/users — Create a new staff account (Kitchen/Cashier/Owner)
+app.post('/api/restaurants/:id/users', verifyToken, async (req: any, res) => {
+    const { id } = req.params;
+    if (req.restaurant.restaurantId !== id || req.user.role !== 'OWNER') {
+        return res.status(403).json({ error: 'Only restaurant owners can create staff accounts.' });
+    }
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password || !role) {
+        return res.status(400).json({ error: 'Name, email, password, and role are required.' });
+    }
+    if (!['OWNER', 'KITCHEN', 'CASHIER'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role specified.' });
+    }
+
+    try {
+        const existing = await prisma.user.findFirst({ where: { email } });
+        if (existing) {
+            return res.status(400).json({ error: 'This email is already registered.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+        const newUser = await prisma.user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                role: role as 'OWNER' | 'KITCHEN' | 'CASHIER',
+                restaurantId: id
+            },
+            select: { id: true, name: true, email: true, role: true, createdAt: true }
+        });
+
+        return res.status(201).json(newUser);
+    } catch (error) {
+        console.error('Error creating staff account:', error);
+        return res.status(500).json({ error: 'Failed to create staff account.' });
+    }
+});
+
+// DELETE /api/users/:userId — Delete a staff user account
+app.delete('/api/users/:userId', verifyToken, async (req: any, res) => {
+    const { userId } = req.params;
+    if (req.user.role !== 'OWNER') {
+        return res.status(403).json({ error: 'Only owners can delete staff accounts.' });
+    }
+    if (req.user.userId === userId) {
+        return res.status(400).json({ error: 'You cannot delete your own owner account.' });
+    }
+
+    try {
+        const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+        if (!targetUser || targetUser.restaurantId !== req.restaurant.restaurantId) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        await prisma.user.delete({ where: { id: userId } });
+        return res.json({ success: true, message: 'Staff user deleted successfully.' });
+    } catch (error) {
+        return res.status(500).json({ error: 'Failed to delete staff user.' });
+    }
+});
+
 // ─── RESTAURANT ROUTES ───────────────────────────────────────────────────────
 
 // POST /api/restaurants — legacy alias used by /signup page (same logic as /api/auth/register)
