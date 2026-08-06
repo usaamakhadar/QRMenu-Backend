@@ -1026,10 +1026,8 @@ app.get('/api/restaurants/:id/analytics', verifyToken, async (req: any, res) => 
     } else if (period === 'yesterday') {
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-    } else if (period === 'this_week') {
-        const dayOfWeek = now.getDay();
-        const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday, 0, 0, 0, 0);
+    } else if (period === 'this_week' || period === 'last_7_days') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7, 0, 0, 0, 0);
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     } else if (period === 'this_month') {
         startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
