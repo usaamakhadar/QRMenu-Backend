@@ -1007,44 +1007,74 @@ app.get('/api/tables/:tableId/active-session', async (req, res) => {
     }
 });
 
-// 8. Analytics (Optimized using SQL aggregations on Neon PostgreSQL)
+// 8. Analytics (Optimized using SQL aggregations on Neon PostgreSQL with Date Range Filtering)
 app.get('/api/restaurants/:id/analytics', verifyToken, async (req: any, res) => {
     const { id } = req.params;
     if (req.restaurant.restaurantId !== id) {
         return res.status(403).json({ error: 'Unauthorized access.' });
     }
+
+    const period = (req.query.period as string) || 'today';
+    const now = new Date();
+
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+
+    if (period === 'today') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    } else if (period === 'yesterday') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+    } else if (period === 'this_week') {
+        const dayOfWeek = now.getDay();
+        const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday, 0, 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    } else if (period === 'this_month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    }
+
     try {
-        // 1. Get total paid orders
-        const totalOrders = await prisma.order.count({
-            where: {
-                restaurantId: id,
-                paymentStatus: 'PAID',
-                status: { not: 'CANCELLED' }
-            },
+        const whereClause: any = {
+            restaurantId: id,
+            paymentStatus: 'PAID',
+            status: { not: 'CANCELLED' }
+        };
+
+        if (startDate) {
+            whereClause.createdAt = {
+                gte: startDate,
+                ...(endDate ? { lte: endDate } : {})
+            };
+        }
+
+        // 1. Fetch restaurant exchange rate & settings
+        const restaurant = await prisma.restaurant.findUnique({
+            where: { id },
+            select: { exchangeRate: true, taxRate: true }
         });
 
-        // 2. Get total revenue (sum of totalAmount for PAID orders)
+        // 2. Get total paid orders for period
+        const totalOrders = await prisma.order.count({
+            where: whereClause
+        });
+
+        // 3. Get total revenue (sum of totalAmount for PAID orders in period)
         const revenueAggregate = await prisma.order.aggregate({
-            where: {
-                restaurantId: id,
-                paymentStatus: 'PAID',
-                status: { not: 'CANCELLED' }
-            },
+            where: whereClause,
             _sum: {
                 totalAmount: true,
             },
         });
         const totalRevenue = revenueAggregate._sum.totalAmount || 0;
 
-        // 3. Get top menu items by quantity sold in PAID orders
+        // 4. Get top menu items by quantity sold in period
         const topItemsGroup = await prisma.orderItem.groupBy({
             by: ['menuItemId'],
             where: {
-                order: {
-                    restaurantId: id,
-                    paymentStatus: 'PAID',
-                    status: { not: 'CANCELLED' }
-                },
+                order: whereClause
             },
             _sum: {
                 quantity: true,
@@ -1070,7 +1100,17 @@ app.get('/api/restaurants/:id/analytics', verifyToken, async (req: any, res) => 
             };
         });
 
-        return res.json({ totalOrders, totalRevenue, topItems });
+        const exchangeRate = restaurant?.exchangeRate || 8500;
+        const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+        return res.json({
+            period,
+            totalOrders,
+            totalRevenue,
+            averageOrderValue,
+            exchangeRate,
+            topItems
+        });
     } catch (error) {
         console.error('Error fetching analytics:', error);
         return res.status(500).json({ error: 'Failed to fetch analytics' });
