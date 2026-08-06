@@ -212,9 +212,14 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    try {
+        const cleanEmail = email.trim().toLowerCase();
         const user = await prisma.user.findFirst({
-            where: { email },
+            where: {
+                email: {
+                    equals: cleanEmail,
+                    mode: 'insensitive'
+                }
+            },
             include: { restaurant: true }
         });
 
